@@ -1,5 +1,5 @@
 /***** 1) CONFIG — paste your Apps Script Web App URL here *****/
-const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // e.g., https://script.google.com/macros/s/AKfycb.../exec
+const API_URL = 'https://script.google.com/macros/s/AKfycbznV0gUxynfHEVrkfcoc3zipjNeJ3nBuXVepnnUuJgoPzdKewQILzINfiVM7LS1Zyw/exec'; // e.g., https://script.google.com/macros/s/AKfycb.../exec
 /**************************************************************/
 
 let CFG = { campaignId:'', stores:[] };
