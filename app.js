@@ -40,20 +40,33 @@ function deviceId(){
 
 async function apiPost(payload){
   const controller = new AbortController();
-  const t = setTimeout(()=>controller.abort(), 12000); // 12s safety
-  try{
-    const res = await fetch(API_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    clearTimeout(t);
-    return await res.json();
-  }catch(e){
-    throw new Error('Failed to reach API: '+e.message);
+  const t = setTimeout(()=>controller.abort(), 12000);
+  const res = await fetch(API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+    signal: controller.signal,
+    redirect: 'follow'
+  });
+  clearTimeout(t);
+
+  const ctype = res.headers.get('content-type') || '';
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(`API HTTP ${res.status}: ${text.slice(0,120)}`);
   }
+  if (!ctype.includes('application/json')) {
+    // Most common cause: you’re getting an HTML Google login/Authorization page
+    throw new Error(
+      "API did not return JSON. You likely hit a Google login/auth page.\n" +
+      "Fix: Set Web app access to 'Anyone', re-Deploy, and use the NEW /exec URL.\n" +
+      `First 120 chars:\n${text.slice(0,120)}`
+    );
+  }
+  return JSON.parse(text);
 }
+
 
 /** -------- INIT (per-store config) -------- **/
 document.addEventListener('DOMContentLoaded', async ()=>{
