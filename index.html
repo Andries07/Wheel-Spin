@@ -11,23 +11,18 @@
     <header class="topbar">
       <div class="brand">
         <div class="logo">🍗</div>
-        <div class="title">Chicken Licken</div>
+        <div class="title" id="storeName">Chicken Licken</div>
       </div>
-      <div class="sub">Soul Good • In-Store Tablet</div>
+      <div class="sub" id="storeTarget">Target: R—</div>
     </header>
 
     <main class="content">
-      <!-- HOME -->
       <section id="home">
         <div class="hero">
           <button class="bigbtn" onclick="showPanel('review')">⭐ Reviews</button>
           <button class="bigbtn alt" onclick="showPanel('wheel')">🎡 Wheel Spin</button>
         </div>
-        <div class="card">
-          <label>Store</label>
-          <select id="storeSelect"></select>
-          <div class="hint" id="qualifyHint">Pick a store to see the basket target.</div>
-        </div>
+        <div class="card hint">This tablet is locked to this store.</div>
       </section>
 
       <!-- REVIEWS -->
