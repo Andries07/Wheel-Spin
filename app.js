@@ -44,31 +44,29 @@ function closeModal(){ $('modal').classList.add('hidden'); }
 document.addEventListener('DOMContentLoaded', async ()=>{
   try{
     const cfg = await apiPost({action:'getConfig', deviceId: deviceId()});
-    if(!cfg.ok) throw new Error('Config failed');
+    if(!cfg.ok){
+      toast('Config failed', JSON.stringify(cfg));
+      return;
+    }
     CFG = cfg;
     const sel = $('storeSelect'); sel.innerHTML='';
+    if(!CFG.stores || CFG.stores.length === 0){
+      toast('No stores found', 'Check your "Stores" sheet: headers & TRUE in Active column.');
+      return;
+    }
     CFG.stores.forEach(s=>{
       const opt = document.createElement('option');
       opt.value = s.StoreID; opt.textContent = `${s.StoreName} (Target R${s.QualifyAmount})`;
       sel.appendChild(opt);
     });
-    if(CFG.stores.length){ sel.value = CFG.stores[0].StoreID; updateStoreHint(); }
+    sel.value = CFG.stores[0].StoreID;
+    updateStoreHint();
     sel.addEventListener('change', updateStoreHint);
   }catch(e){
-    toast('Setup error','Could not load configuration. Check API_URL.');
+    toast('Setup error', String(e));
   }
 });
 
-function getSelectedStore(){
-  const sid = $('storeSelect').value;
-  return CFG.stores.find(s=>s.StoreID===sid) || null;
-}
-function updateStoreHint(){
-  currentStore = getSelectedStore();
-  $('qualifyHint').textContent = currentStore
-    ? `This store’s basket target is R${currentStore.QualifyAmount}.`
-    : 'Choose a store.';
-}
 
 /** -------- REVIEWS -------- **/
 async function submitReview(){
