@@ -42,29 +42,29 @@ async function apiPost(payload){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), 12000);
   const res = await fetch(API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
+    method: 'POST',
+    // IMPORTANT: use text/plain to avoid CORS preflight
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
     signal: controller.signal,
-    redirect: 'follow'
   });
   clearTimeout(t);
 
-  const ctype = res.headers.get('content-type') || '';
+  // Read as text first; if it’s HTML, we’ll catch it
   const text = await res.text();
-
   if (!res.ok) {
     throw new Error(`API HTTP ${res.status}: ${text.slice(0,120)}`);
   }
-  if (!ctype.includes('application/json')) {
-    // Most common cause: you’re getting an HTML Google login/Authorization page
+  // Apps Script returns JSON with content-type application/json; but we don’t rely on it
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // You’re still getting an HTML page (auth/redirect). See Fix 2.
     throw new Error(
-      "API did not return JSON. You likely hit a Google login/auth page.\n" +
-      "Fix: Set Web app access to 'Anyone', re-Deploy, and use the NEW /exec URL.\n" +
+      "API did not return JSON. Likely a public-access issue.\n" +
       `First 120 chars:\n${text.slice(0,120)}`
     );
   }
-  return JSON.parse(text);
 }
 
 
