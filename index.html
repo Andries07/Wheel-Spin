@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chicken Licken — Reviews & Wheel</title>
+  <?!= include_('style'); ?>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">🍗</div>
+        <div>
+          <div class="title">Chicken Licken</div>
+          <div class="sub">Soul Good • In-Store Tablet</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- HOME -->
+      <section id="home">
+        <div class="hero">
+          <button class="bigbtn" onclick="showPanel('review')">⭐ Reviews</button>
+          <button class="bigbtn alt" onclick="showPanel('wheel')">🎡 Wheel Spin</button>
+        </div>
+
+        <div class="card">
+          <label>Store</label>
+          <select id="storeSelect"></select>
+          <div class="hint" id="qualifyHint">Pick a store to see the basket target.</div>
+        </div>
+      </section>
+
+      <!-- REVIEWS PANEL -->
+      <section id="panel-review" class="card hidden">
+        <h2>Quick Review (20s)</h2>
+        <div class="grid">
+          <label>Food Freshness
+            <input type="range" id="rvFresh" min="1" max="5" value="5">
+          </label>
+          <label>Service
+            <input type="range" id="rvService" min="1" max="5" value="5">
+          </label>
+          <label>Speed
+            <input type="range" id="rvSpeed" min="1" max="5" value="5">
+          </label>
+          <label>Cleanliness
+            <input type="range" id="rvClean" min="1" max="5" value="5">
+          </label>
+          <label>Friendliness
+            <input type="range" id="rvFriendly" min="1" max="5" value="5">
+          </label>
+        </div>
+        <label>Comment (optional)
+          <textarea id="rvComment" rows="3" placeholder="Tell us more…"></textarea>
+        </label>
+        <div class="grid">
+          <label>Name (optional)
+            <input type="text" id="rvName">
+          </label>
+          <label>Phone (optional)
+            <input type="tel" id="rvPhone" placeholder="0812345678">
+          </label>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="submitReview()">Submit</button>
+          <button class="btn ghost" onclick="goHome()">Back</button>
+        </div>
+        <div id="rvMsg" class="hint"></div>
+      </section>
+
+      <!-- WHEEL PANEL -->
+      <section id="panel-wheel" class="card hidden">
+        <h2>Spin the Wheel (Qualify by Basket)</h2>
+
+        <div class="grid">
+          <label>Name
+            <input type="text" id="wName" required>
+          </label>
+          <label>Surname
+            <input type="text" id="wSurname" required>
+          </label>
+          <label>Email
+            <input type="email" id="wEmail" required>
+          </label>
+          <label>Phone (RSA)
+            <input type="tel" id="wPhone" required placeholder="0812345678" pattern="0[0-9]{9}">
+          </label>
+          <label>Order / Receipt #
+            <input type="text" id="wOrder" required>
+          </label>
+          <label>Basket Amount (R)
+            <input type="number" id="wAmount" min="0" step="1" required>
+          </label>
+          <label>Cashier PIN
+            <input type="password" id="wPin" required>
+          </label>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" id="wPopia" required>
+          <span>I consent (POPIA) to use my details for prize notification & audits.</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="wMarketing" required>
+          <span>I agree to receive marketing from Chicken Licken.</span>
+        </label>
+
+        <div class="wheelWrap">
+          <div id="wheel" class="wheel"></div>
+          <button id="spinBtn" class="spin" onclick="spin()" disabled>SPIN</button>
+        </div>
+
+        <div class="row">
+          <button class="btn ghost" onclick="goHome()">Back</button>
+        </div>
+
+        <div id="wheelMsg" class="hint"></div>
+      </section>
+
+      <!-- MODAL RESULT -->
+      <div id="modal" class="overlay hidden">
+        <div class="modal">
+          <h3 id="mTitle">Result</h3>
+          <div id="mBody" class="mbody"></div>
+          <button class="btn" onclick="closeModal()">OK</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="foot">© Chicken Licken • T&Cs apply • In-store use only</footer>
+  </div>
+
+  <?!= include_('script'); ?>
+</body>
+</html>
