@@ -1,130 +1,119 @@
-/***** 1) CONFIG — paste your Apps Script Web App URL here *****/
-const API_URL = 'https://script.google.com/macros/s/AKfycbznV0gUxynfHEVrkfcoc3zipjNeJ3nBuXVepnnUuJgoPzdKewQILzINfiVM7LS1Zyw/exec'; // e.g., https://script.google.com/macros/s/AKfycb.../exec
-/**************************************************************/
+/***** 1) CONFIG — paste your Apps Script Web App URL *****/
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // e.g. https://script.google.com/macros/s/AKfycb.../exec
 
-let CFG = { campaignId:'', stores:[] };
-let currentStore = null;
-let verifiedForSpin = false;
+/***** 2) STORE ID — choose ONE method *****/
+// (A) Pass per-store via URL, like ?store=CL-001
+function getStoreFromQuery(){
+  const m = /[?&]store=([^&]+)/i.exec(location.search);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+let STORE_ID = getStoreFromQuery();
+
+// (B) OR hardcode it here (uncomment next line and set your store):
+// let STORE_ID = 'CL-001';
+
+/*****************************************************/
+let CFG = { campaignId:'', store:{ id:'', name:'', qualifyAmount:0 } };
 let spinDeg = 0;
 
 function $(id){ return document.getElementById(id); }
-function panel(id){ return document.getElementById('panel-'+id); }
-
-async function apiPost(payload){
-  const res = await fetch(API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  });
-  return await res.json();
+function showPanel(which){
+  $('home').classList.add('hidden');
+  ['review','wheel'].forEach(p => $('panel-'+p).classList.add('hidden'));
+  $('panel-'+which).classList.remove('hidden');
 }
-
+function goHome(){
+  $('home').classList.remove('hidden');
+  ['review','wheel'].forEach(p => $('panel-'+p).classList.add('hidden'));
+}
+function toast(title, body){
+  $('mTitle').innerText = title||'Note';
+  $('mBody').innerText  = body||'';
+  $('modal').classList.remove('hidden');
+}
+function closeModal(){ $('modal').classList.add('hidden'); }
 function deviceId(){
   let v = localStorage.getItem('cl_device_id');
   if(!v){ v='TAB-'+Math.random().toString(36).slice(2,10).toUpperCase(); localStorage.setItem('cl_device_id',v); }
   return v;
 }
 
-function showPanel(which){
-  $('home').classList.add('hidden');
-  ['review','wheel'].forEach(p=>panel(p).classList.add('hidden'));
-  panel(which).classList.remove('hidden');
-  if(which==='wheel'){ verifiedForSpin=false; $('spinBtn').disabled=true; $('wheelMsg').textContent=''; }
+async function apiPost(payload){
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), 12000); // 12s safety
+  try{
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    return await res.json();
+  }catch(e){
+    throw new Error('Failed to reach API: '+e.message);
+  }
 }
-function goHome(){ $('home').classList.remove('hidden'); ['review','wheel'].forEach(p=>panel(p).classList.add('hidden')); }
 
-function toast(title, body){
-  $('mTitle').innerText = title||'Note';
-  $('mBody').innerText = body||'';
-  $('modal').classList.remove('hidden');
-}
-function closeModal(){ $('modal').classList.add('hidden'); }
-
-/** -------- INIT -------- **/
+/** -------- INIT (per-store config) -------- **/
 document.addEventListener('DOMContentLoaded', async ()=>{
   try{
-    const cfg = await apiPost({action:'getConfig', deviceId: deviceId()});
-    if(!cfg.ok){
-      toast('Config failed', JSON.stringify(cfg));
-      return;
-    }
+    if(!STORE_ID){ toast('Missing store','Add ?store=CL-001 to the URL or hardcode STORE_ID in app.js'); return; }
+    const cfg = await apiPost({ action:'getConfig', storeId: STORE_ID, deviceId: deviceId() });
+    if(!cfg.ok){ toast('Config error', JSON.stringify(cfg)); return; }
     CFG = cfg;
-    const sel = $('storeSelect'); sel.innerHTML='';
-    if(!CFG.stores || CFG.stores.length === 0){
-      toast('No stores found', 'Check your "Stores" sheet: headers & TRUE in Active column.');
-      return;
-    }
-    CFG.stores.forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s.StoreID; opt.textContent = `${s.StoreName} (Target R${s.QualifyAmount})`;
-      sel.appendChild(opt);
-    });
-    sel.value = CFG.stores[0].StoreID;
-    updateStoreHint();
-    sel.addEventListener('change', updateStoreHint);
+    $('storeName').innerText  = CFG.store.name || STORE_ID;
+    $('storeTarget').innerText= `Target: R${CFG.store.qualifyAmount}`;
   }catch(e){
-    toast('Setup error', String(e));
+    toast('Setup error', e.message + '\nCheck API_URL and deployment access.');
   }
 });
 
-
 /** -------- REVIEWS -------- **/
 async function submitReview(){
-  const store = getSelectedStore();
-  if(!store){ toast('Pick store','Please select a store first.'); return; }
-  const payload = {
-    action: 'feedback',
-    storeId: store.StoreID,
-    foodFresh: $('rvFresh').value,
-    service: $('rvService').value,
-    speed: $('rvSpeed').value,
-    cleanliness: $('rvClean').value,
-    friendliness: $('rvFriendly').value,
-    comment: $('rvComment').value,
-    name: $('rvName').value,
-    phone: $('rvPhone').value,
-    deviceId: deviceId()
-  };
-  const res = await apiPost(payload);
-  if(res.ok){
-    $('rvMsg').textContent = 'Thanks! Your feedback helps us get soul better.';
-    setTimeout(()=>{ $('rvMsg').textContent=''; goHome(); }, 1500);
-  } else {
-    toast('Error','Could not submit review.');
-  }
+  try{
+    const payload = {
+      action: 'feedback',
+      storeId: STORE_ID,
+      foodFresh: $('rvFresh').value,
+      service: $('rvService').value,
+      speed: $('rvSpeed').value,
+      cleanliness: $('rvClean').value,
+      friendliness: $('rvFriendly').value,
+      comment: $('rvComment').value,
+      name: $('rvName').value,
+      phone: $('rvPhone').value,
+      deviceId: deviceId()
+    };
+    const res = await apiPost(payload);
+    if(res.ok){
+      $('rvMsg').textContent = 'Thanks! Your feedback helps us get soul better.';
+      setTimeout(()=>{ $('rvMsg').textContent=''; goHome(); }, 1500);
+    } else {
+      toast('Error','Could not submit review.');
+    }
+  }catch(e){ toast('Network', e.message); }
 }
 
 /** -------- WHEEL -------- **/
-function checkSpinEligibility(){
-  const store = getSelectedStore();
-  if(!store){ $('wheelMsg').textContent='Pick a store'; return false; }
-  const amount = Number($('wAmount').value||0);
-  if(amount < Number(store.QualifyAmount||0)){
-    $('wheelMsg').textContent = `Basket below store target (R${store.QualifyAmount}).`;
-    return false;
-  }
-  const required = ['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin'];
-  for(const id of required){ if(!$(id).value.trim()){ $('wheelMsg').textContent='Complete all fields.'; return false; } }
-  if(!$('wPopia').checked || !$('wMarketing').checked){
-    $('wheelMsg').textContent='POPIA + Marketing consent required.';
-    return false;
-  }
-  $('wheelMsg').textContent='';
-  return true;
+function eligible(){
+  const q = CFG.store.qualifyAmount||0;
+  const val = Number($('wAmount').value||0);
+  if(val < q){ $('wheelMsg').textContent = `Basket below target (R${q}).`; return false; }
+  const req = ['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin'];
+  for(const id of req){ if(!$(id).value.trim()){ $('wheelMsg').textContent='Complete all fields.'; return false; } }
+  if(!$('wPopia').checked || !$('wMarketing').checked){ $('wheelMsg').textContent='POPIA + Marketing consent required.'; return false; }
+  $('wheelMsg').textContent=''; return true;
 }
-
 ['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin','wPopia','wMarketing'].forEach(id=>{
   const el = $(id);
-  (el.type==='checkbox' ? 'change' : 'input');
   el.addEventListener(el.type==='checkbox' ? 'change' : 'input', ()=>{
-    verifiedForSpin = checkSpinEligibility();
-    $('spinBtn').disabled = !verifiedForSpin;
+    $('spinBtn').disabled = !eligible();
   });
 });
 
 async function spin(){
-  if(!checkSpinEligibility()){ toast('Not ready','Please complete details & meet basket target.'); return; }
-  const store = getSelectedStore();
+  if(!eligible()){ toast('Not ready','Please complete details & meet basket target.'); return; }
   $('spinBtn').disabled = true;
 
   // Eye-candy spin
@@ -133,25 +122,29 @@ async function spin(){
   $('wheel').style.transform = `rotate(${spinDeg}deg)`;
 
   // Server result
-  const res = await apiPost({
-    action:'spin',
-    deviceId: deviceId(),
-    storeId: store.StoreID,
-    name: $('wName').value.trim(),
-    surname: $('wSurname').value.trim(),
-    email: $('wEmail').value.trim(),
-    phone: $('wPhone').value.trim().replace(/\s+/g,''),
-    popia: $('wPopia').checked,
-    marketing: $('wMarketing').checked,
-    orderNumber: $('wOrder').value.trim(),
-    basketAmount: Number($('wAmount').value||0),
-    cashierPin: $('wPin').value.trim()
-  });
+  try{
+    const res = await apiPost({
+      action:'spin',
+      storeId: STORE_ID,
+      deviceId: deviceId(),
+      name: $('wName').value.trim(),
+      surname: $('wSurname').value.trim(),
+      email: $('wEmail').value.trim(),
+      phone: $('wPhone').value.trim().replace(/\s+/g,''),
+      popia: $('wPopia').checked,
+      marketing: $('wMarketing').checked,
+      orderNumber: $('wOrder').value.trim(),
+      basketAmount: Number($('wAmount').value||0),
+      cashierPin: $('wPin').value.trim()
+    });
 
-  setTimeout(()=> showSpinResult(res, store), 3300);
+    setTimeout(()=> showSpinResult(res), 3300);
+  }catch(e){
+    setTimeout(()=>{ toast('Network', e.message); $('spinBtn').disabled=false; }, 3300);
+  }
 }
 
-function showSpinResult(res, store){
+function showSpinResult(res){
   if(!res || !res.ok){
     let msg = 'Something went wrong.';
     if(res && res.error){
@@ -169,7 +162,7 @@ function showSpinResult(res, store){
     return;
   }
   if(res.result==='Win'){
-    toast('🎉 You WON!', `Prize: ${res.prizeName}\nYour code: ${res.prizeCode}\n(We also emailed it to you.)\nShow with your receipt to claim at ${store.StoreName}.`);
+    toast('🎉 You WON!', `Prize: ${res.prizeName}\nYour code: ${res.prizeCode}\n(We also emailed it to you.)\nShow with your receipt to claim at ${CFG.store.name}.`);
   } else if(res.result==='GrandEntry'){
     toast('🎟️ You’re In!', `You earned an entry into the grand draw.\nConfirmation code: ${res.prizeCode}\n(We also emailed it to you.)`);
   } else {
