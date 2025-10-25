@@ -1,92 +1,47 @@
 /***** 1) CONFIG — paste your Apps Script Web App URL *****/
-const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // e.g. https://script.google.com/macros/s/AKfycb.../exec
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // ends with /exec
 
-/***** 2) STORE ID — choose ONE method *****/
-// (A) Pass per-store via URL, like ?store=CL-001
-function getStoreFromQuery(){
-  const m = /[?&]store=([^&]+)/i.exec(location.search);
-  return m ? decodeURIComponent(m[1]) : null;
-}
+/***** 2) STORE ID — one URL per store (query) or hardcode *****/
+function getStoreFromQuery(){ const m=/[?&]store=([^&]+)/i.exec(location.search); return m?decodeURIComponent(m[1]):null; }
 let STORE_ID = getStoreFromQuery();
-
-// (B) OR hardcode it here (uncomment next line and set your store):
+// Or hardcode instead of query param:
 // let STORE_ID = 'CL-001';
 
-/*****************************************************/
-let CFG = { campaignId:'', store:{ id:'', name:'', qualifyAmount:0 } };
-let spinDeg = 0;
-
 function $(id){ return document.getElementById(id); }
-function showPanel(which){
-  $('home').classList.add('hidden');
-  ['review','wheel'].forEach(p => $('panel-'+p).classList.add('hidden'));
-  $('panel-'+which).classList.remove('hidden');
-}
-function goHome(){
-  $('home').classList.remove('hidden');
-  ['review','wheel'].forEach(p => $('panel-'+p).classList.add('hidden'));
-}
-function toast(title, body){
-  $('mTitle').innerText = title||'Note';
-  $('mBody').innerText  = body||'';
-  $('modal').classList.remove('hidden');
-}
+function deviceId(){ let v=localStorage.getItem('cl_device_id'); if(!v){ v='TAB-'+Math.random().toString(36).slice(2,10).toUpperCase(); localStorage.setItem('cl_device_id',v);} return v; }
+function showPanel(which){ $('home').classList.add('hidden'); ['review','wheel'].forEach(p=>$('panel-'+p).classList.add('hidden')); $('panel-'+which).classList.remove('hidden'); }
+function goHome(){ $('home').classList.remove('hidden'); ['review','wheel'].forEach(p=>$('panel-'+p).classList.add('hidden')); }
+function toast(title,body){ $('mTitle').innerText=title||'Note'; $('mBody').innerText=body||''; $('modal').classList.remove('hidden'); }
 function closeModal(){ $('modal').classList.add('hidden'); }
-function deviceId(){
-  let v = localStorage.getItem('cl_device_id');
-  if(!v){ v='TAB-'+Math.random().toString(36).slice(2,10).toUpperCase(); localStorage.setItem('cl_device_id',v); }
-  return v;
-}
 
-async function apiPost(payload){
-  const controller = new AbortController();
-  const t = setTimeout(()=>controller.abort(), 12000);
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    // IMPORTANT: use text/plain to avoid CORS preflight
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
-  });
-  clearTimeout(t);
-
-  // Read as text first; if it’s HTML, we’ll catch it
+/** ---- Simple GET helper (no CORS preflight) ---- **/
+async function apiGet(params){
+  const url = API_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url, { method:'GET' });
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`API HTTP ${res.status}: ${text.slice(0,120)}`);
-  }
-  // Apps Script returns JSON with content-type application/json; but we don’t rely on it
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    // You’re still getting an HTML page (auth/redirect). See Fix 2.
-    throw new Error(
-      "API did not return JSON. Likely a public-access issue.\n" +
-      `First 120 chars:\n${text.slice(0,120)}`
-    );
-  }
+  if(!res.ok) throw new Error(`API HTTP ${res.status}: ${text.slice(0,120)}`);
+  try{ return JSON.parse(text); }catch(e){ throw new Error('API did not return JSON.\n'+text.slice(0,120)); }
 }
 
-
-/** -------- INIT (per-store config) -------- **/
+/** ---- INIT: fetch per-store config ---- **/
 document.addEventListener('DOMContentLoaded', async ()=>{
   try{
     if(!STORE_ID){ toast('Missing store','Add ?store=CL-001 to the URL or hardcode STORE_ID in app.js'); return; }
-    const cfg = await apiPost({ action:'getConfig', storeId: STORE_ID, deviceId: deviceId() });
+    const cfg = await apiGet({ action:'getConfig', storeId: STORE_ID, deviceId: deviceId() });
     if(!cfg.ok){ toast('Config error', JSON.stringify(cfg)); return; }
-    CFG = cfg;
-    $('storeName').innerText  = CFG.store.name || STORE_ID;
-    $('storeTarget').innerText= `Target: R${CFG.store.qualifyAmount}`;
+    window.CFG = cfg;
+    $('storeName').innerText  = cfg.store.name || STORE_ID;
+    $('storeTarget').innerText= `Target: R${cfg.store.qualifyAmount}`;
   }catch(e){
-    toast('Setup error', e.message + '\nCheck API_URL and deployment access.');
+    toast('Setup error', e.message + '\nCheck API_URL deployment access ("Anyone").');
   }
 });
 
-/** -------- REVIEWS -------- **/
+/** ---- REVIEWS ---- **/
 async function submitReview(){
   try{
-    const payload = {
-      action: 'feedback',
+    const res = await apiGet({
+      action:'feedback',
       storeId: STORE_ID,
       foodFresh: $('rvFresh').value,
       service: $('rvService').value,
@@ -97,10 +52,9 @@ async function submitReview(){
       name: $('rvName').value,
       phone: $('rvPhone').value,
       deviceId: deviceId()
-    };
-    const res = await apiPost(payload);
+    });
     if(res.ok){
-      $('rvMsg').textContent = 'Thanks! Your feedback helps us get soul better.';
+      $('rvMsg').textContent='Thanks! Your feedback helps us get soul better.';
       setTimeout(()=>{ $('rvMsg').textContent=''; goHome(); }, 1500);
     } else {
       toast('Error','Could not submit review.');
@@ -108,35 +62,28 @@ async function submitReview(){
   }catch(e){ toast('Network', e.message); }
 }
 
-/** -------- WHEEL -------- **/
+/** ---- WHEEL ---- **/
 function eligible(){
-  const q = CFG.store.qualifyAmount||0;
-  const val = Number($('wAmount').value||0);
-  if(val < q){ $('wheelMsg').textContent = `Basket below target (R${q}).`; return false; }
-  const req = ['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin'];
+  const q=(window.CFG?.store?.qualifyAmount)||0;
+  const val=Number($('wAmount').value||0);
+  if(val<q){ $('wheelMsg').textContent=`Basket below target (R${q}).`; return false; }
+  const req=['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin'];
   for(const id of req){ if(!$(id).value.trim()){ $('wheelMsg').textContent='Complete all fields.'; return false; } }
-  if(!$('wPopia').checked || !$('wMarketing').checked){ $('wheelMsg').textContent='POPIA + Marketing consent required.'; return false; }
+  if(!$('wPopia').checked||!$('wMarketing').checked){ $('wheelMsg').textContent='POPIA + Marketing consent required.'; return false; }
   $('wheelMsg').textContent=''; return true;
 }
 ['wName','wSurname','wEmail','wPhone','wOrder','wAmount','wPin','wPopia','wMarketing'].forEach(id=>{
-  const el = $(id);
-  el.addEventListener(el.type==='checkbox' ? 'change' : 'input', ()=>{
-    $('spinBtn').disabled = !eligible();
-  });
+  const el=$(id); el.addEventListener(el.type==='checkbox'?'change':'input', ()=>{$('spinBtn').disabled=!eligible();});
 });
 
+let spinDeg=0;
 async function spin(){
-  if(!eligible()){ toast('Not ready','Please complete details & meet basket target.'); return; }
-  $('spinBtn').disabled = true;
+  if(!eligible()){ toast('Not ready','Complete details & meet basket target.'); return; }
+  $('spinBtn').disabled=true;
+  const turns=4+Math.random()*2; spinDeg+=turns*360; $('wheel').style.transform=`rotate(${spinDeg}deg)`;
 
-  // Eye-candy spin
-  const turns = 4 + Math.random()*2;
-  spinDeg += turns*360;
-  $('wheel').style.transform = `rotate(${spinDeg}deg)`;
-
-  // Server result
   try{
-    const res = await apiPost({
+    const res = await apiGet({
       action:'spin',
       storeId: STORE_ID,
       deviceId: deviceId(),
@@ -144,42 +91,31 @@ async function spin(){
       surname: $('wSurname').value.trim(),
       email: $('wEmail').value.trim(),
       phone: $('wPhone').value.trim().replace(/\s+/g,''),
-      popia: $('wPopia').checked,
-      marketing: $('wMarketing').checked,
+      popia: true,
+      marketing: true,
       orderNumber: $('wOrder').value.trim(),
       basketAmount: Number($('wAmount').value||0),
       cashierPin: $('wPin').value.trim()
     });
-
-    setTimeout(()=> showSpinResult(res), 3300);
+    setTimeout(()=>showSpinResult(res), 3300);
   }catch(e){
     setTimeout(()=>{ toast('Network', e.message); $('spinBtn').disabled=false; }, 3300);
   }
 }
-
 function showSpinResult(res){
-  if(!res || !res.ok){
-    let msg = 'Something went wrong.';
-    if(res && res.error){
-      const map = {
-        rate_limit:'Too many attempts — wait a minute.',
-        missing_fields:'Please complete all required fields.',
-        consent_required:'POPIA + Marketing consent required.',
-        bad_pin:'Cashier PIN incorrect.',
-        store_not_found:'Store not found.'
-      };
-      msg = map[res.error] || res.error;
+  if(!res||!res.ok){
+    let msg='Something went wrong.'; if(res&&res.error){
+      const map={rate_limit:'Too many attempts — wait a minute.',missing_fields:'Please complete all fields.',consent_required:'POPIA + Marketing consent required.',bad_pin:'Cashier PIN incorrect.',store_not_found:'Store not found.'};
+      msg=map[res.error]||res.error;
     }
-    toast('Oops…', msg);
-    $('spinBtn').disabled = false;
-    return;
+    toast('Oops…', msg); $('spinBtn').disabled=false; return;
   }
   if(res.result==='Win'){
-    toast('🎉 You WON!', `Prize: ${res.prizeName}\nYour code: ${res.prizeCode}\n(We also emailed it to you.)\nShow with your receipt to claim at ${CFG.store.name}.`);
+    toast('🎉 You WON!', `Prize: ${res.prizeName}\nYour code: ${res.prizeCode}\n(We also emailed it to you.)\nShow with your receipt to claim at ${window.CFG.store.name}.`);
   } else if(res.result==='GrandEntry'){
-    toast('🎟️ You’re In!', `You earned an entry into the grand draw.\nConfirmation code: ${res.prizeCode}\n(We also emailed it to you.)`);
+    toast('🎟️ You’re In!', `You earned a grand draw entry.\nConfirmation code: ${res.prizeCode}\n(We also emailed it to you.)`);
   } else {
-    toast('So close! 💥', 'Thanks for being a valued Chicken Licken customer.\nYou did not win a prize this time. Try again next visit! 🍗✨');
+    toast('So close! 💥', 'Thanks for being a valued Chicken Licken customer.\nNo prize this time. Try again next visit! 🍗✨');
   }
   setTimeout(()=>{ $('spinBtn').disabled=false; }, 500);
 }
